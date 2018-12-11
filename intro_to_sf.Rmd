@@ -298,7 +298,9 @@ plot(ak_mgmt["total_pop"])
 Save the spatial object to disk using `write_sf()` and specifying the filename. Writing your file with the extension .shp will assume an ESRI driver [driver](http://www.gdal.org/ogr_formats.html), but there are many other format options available.
 
 ```{r plot}
-write_sf(ak_pop_sf, "shapefiles/ak_regions_population.shp", delete_layer = TRUE)
+write_sf(ak_mgmt, "shapefiles/ak_mgmt.shp")
+
+#saved all four layers of the shapefile - you can see that you can now stage/commit/push to github 
 ```
 
 # Visualize with ggplot
@@ -315,7 +317,7 @@ This is useful to make sure your file looks correct but doesn't display any info
 
 ```{r}
 ggplot(ak_pop_sf) +
-  geom_sf(aes(fill = total_pop))
+  geom_sf(aes(fill = total_pop)) #use to color the plot polygons by population 
 ```
 
 We can clean it up a bit, applying a cleaner theme and assigning a continuous color palette.
@@ -325,14 +327,18 @@ ggplot(ak_pop_sf) +
   geom_sf(aes(fill = total_pop)) +
   theme_bw() +
   labs(fill = "Total Population") +
-  scale_fill_continuous(low = "khaki", high =  "firebrick", labels = comma)
+  scale_fill_continuous(low = "khaki", high =  "firebrick", labels = comma) 
+
+# labels  = comma, changes numeric values in the legend to have , (in scales package)
 ```
 
 We can also plot multiple shapefiles in the same plot. Say if we want to visualize rivers in Alaska, in addition to the location of communities, since many communities in Alaska are on rivers. We can read in a rivers shapefile, doublecheck the `crs` to make sure it is what we need, and then plot all three shapefiles.
 
 ```{r}
 rivers <- read_sf("shapefiles/ak_rivers.shp")
-st_crs(rivers)
+st_crs(rivers) #check the crs - have to be the same in order to be plotted together
+
+#has no EPSG code but the proj4string looks the same as the one above - if it doesn't show up its not the same crs
 ```
 
 ```{r}
@@ -345,6 +351,10 @@ ggplot() +
   labs(fill = "Total Population") +
   scale_fill_continuous(low = "khaki", high =  "firebrick", labels = comma)
 
+# leave initial ggplot() arguement empty when you're creating multiple plots together 
+# size = StrOrder; column called StrOrder in the dataframe tells you the size of the river, since we want it to change size based on the StrOrder we use the aes(size = ()) function. use color = outside the aes argument because you want the color to be black for all of them regardless of size.
+# scale_size is used for the rivers because the size of the object is mapped as an aes in the function above. 
+# could also potentially use scale_linewidth if instead of using size = for rivers you used lines = )
 ```
 
 # Visualize with leaflet
@@ -381,7 +391,7 @@ ak_pop_crs <- ak_pop_sf %>% st_transform(crs = 4326)
 m <- leaflet(options = leafletOptions(crs = epsg3338)) %>%
         addPolygons(data = ak_pop_crs, 
                     fillColor = "gray",
-                    weight = 1)
+                    weight = 1) # weight is the weight (thickness) of the line 
 
 m
 ```
