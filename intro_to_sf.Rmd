@@ -64,16 +64,20 @@ Read in a shapefile of Alaska using `readOGR()` from the `rgdal` package, and `s
 
 ## Read in shapefile using rgdal
 
-system.time(ak_shp_rgdal <- readOGR(dsn="shapefiles", layer="ak_regions"))
+system.time(ak_shp_rgdal <- readOGR(dsn="shapefiles", layer="ak_regions")) #dsn is the  folder that holds the data; layer is the actual layer you want to read in within that folder. 
 object.size(ak_shp_rgdal)
 plot(ak_shp_rgdal)
 ```
 
 ```{r read_shp_sf}
-## Read in shapefile using sf
-system.time(ak_shp_sf <- read_sf("shapefiles/ak_regions.shp")) 
-object.size(ak_shp_sf)
+## Read in shapefile using sf::read_sf
+## This shares data from the shapefile into a dataframe that can be manipulated with data wrangling 
+
+system.time(ak_shp_sf <- read_sf("shapefiles/ak_regions.shp")) #name of folder/name of actual file (include extension)
+object.size(ak_shp_sf) 
 head(ak_shp_sf)  
+
+#system.time  just tells how much time it takes to read in the file and object.size tells how large the file is
 ```
 
 
@@ -92,23 +96,28 @@ Every `sf` object needs a coordinate reference system (or `crs`) defined in orde
 You can view what `crs` is set by using the function `st_crs`
 
 ```{r}
-st_crs(ak_shp_sf)
+st_crs(ak_shp_sf) #allows you to view what coordinate system the data is in currently
+
+#EPSG 4326 is using projection lat/long and datum WGS84 (one of mostly commonly used datums)
+# Two piecs of spatial data need to be in the same coordinate reference system 
 ```
 
 This is pretty confusing looking. Without getting into the details, that long string says that this data has a greographic coordinate system (WGS84) with no projection. A convenient way to reference `crs` quickly is by using the EPSG code, a number that represents a standard projection and datum. You can check out a list of (lots!) of EPSG codes [here](http://spatialreference.org/ref/epsg/?page=1). 
 
 You will often need to transform your geospatial data from one coordinate system to another. The `st_transform` function does this quickly for us. You may have noticed the maps above looked wonky because of the dateline. We might want to set a different projection for this data so it plots nicer. A good one for Alaska is called the Alaska Albers projection, with an EPSG code of [3338](http://spatialreference.org/ref/epsg/3338/).
 
-
+Transform (or "reproject") your spatial data into a new crs using st_transform 
 ```{r}
 ak_shp_sf <- ak_shp_sf %>%
-  st_transform(crs = 3338)
+  st_transform(crs = 3338) #the number here is the new  EPSG code 
 
 st_crs(ak_shp_sf)
+
+#equal area projection vs. equal distance projection - can't do both at once so think about the anlaysis that you're doing and choose the right projection (crs) for that analysis 
 ```
 
 ```{r}
-plot(ak_shp_sf)
+plot(ak_shp_sf)  # plotting each column in the dataframe individually onto an "alaska"
 ```
 
 Much better!
@@ -121,8 +130,10 @@ ak_shp_sf
 ```
 
 ```{r}
-nrow(ak_shp_sf)
-ncol(ak_shp_sf)
+# since sf objects can be used as a dataframe you can do data wrangling in tidyverse
+# us ?sf::tidyverse  in the console to see what functions you can use in the tidyverse on sf objects 
+nrow(ak_shp_sf) # how  many rows in dataframe
+ncol(ak_shp_sf) # how many columns in dataframe
 ```
 
 ![](images/Allison_sf_art.png)
@@ -137,7 +148,9 @@ Since `sf` objects are dataframes, they play nicely with packages in the tidyver
 
 ```{r select}
 ak_shp_sf %>%
-  select(region)
+  select(region) 
+
+# Don't have to tell R to keep the geometry column,  the geometry column is "sticky" and will always be updated with the other results. This operation will give you just the region column  and  the geometry column for those regions
 ```
 
 Note the sticky geometry column! The geometry column will stay with your `sf` object even if it is not called explicitly.
@@ -147,6 +160,8 @@ Note the sticky geometry column! The geometry column will stay with your `sf` ob
 ```{r filter}
 ak_shp_sf %>%
   filter(region == "Southeast")
+
+# Result returns the one southeast management region but also the geometry associated with that observation 
 ```
 
 
@@ -165,27 +180,40 @@ First, read in the population data as a regular `data.frame`.
 
 ```{r}
 pop <- read.csv("shapefiles/alaska_population.csv")
+
+head(pop)
+
+class(pop)  # this is class data.frame but needs to be class sf and class data.frame in order to join these two datasets
 ```
 
 The `st_join` function is a spatial left join. The arguments for both the left and right tables are objects of class `sf` which means we will first need to turn our population `data.frame` with latitude and longitude coordinates into an `sf` object. 
 
-We can do this easily using the `st_as_sf` function, which takes as arguments the coordinates and the `crs`. The `remove = F` specification here ensures that when we create our `geometry` column, we retain our original `lat` `lng` columns, which we will need later for plotting. Although it isn't said anywhere explicitly in the file, let's assume that the coordinate system used to reference the latitude longitude coordinates is WGS84, which has a `crs` number of 4236.
+We can do this easily using the `st_as_sf` function, which takes as arguments the coordinates and the `crs`. The `remove = F` specification here ensures that when we create our `geometry` column, we retain our original `lat` `lng` columns, which we will need later for plotting. Although it isn't said anywhere explicitly in the file, let's assume that the coordinate system used to reference the latitude longitude coordinates is WGS84, which has a `crs` number of 4326.
 
 ```{r}
 pop_sf <- st_as_sf(pop, 
                   coords = c('lng', 'lat'),
                   crs = 4326,
-                  remove = F)
+                  remove = F)  
+
+# covert foreign object into an sf object - need to do the following arguments: dataframe name, pass the coordinates using coords = c(x,y) (these are your dataframe column titles), assign a crs of 4326 which is what we used before, remove = F, tells R to retain the individual lat/long columns in addition to creating the new geometry column.
+
+#fundamental characteristic of the data is that it has the lat/long columns so it has to be read in as 4326. It can then be transformed into a different coordinate system but 3338 (the one used below) doesn't  use lat/long so you can't force that projection onto your data without first reading it in as it is. 
+
+#basically- you need to accept the data as it is and put that onto a crs before you can use you a different crs to look  at the data in a different spatial way 
 
 head(pop_sf)
+plot(pop_sf["population"])  #using just plot(pop_sf) will return plots for all the columns, this syntax will return a plot for just population column
 ```
 
-Now we can do our spatial join! You can specify what geometry function the join uses (`st_intersects`, `st_within`, `st_crosses`, `st_is_within_distance`, ...) in the `join` argument. The geometry function you use will depend on what kind of operation you want to do, and the geometries of your shapefiles.
+Now we can do our spatial join! You can specify what geometry function the join uses (`st_intersects`, `st_within`, `st_crosses`, `st_is_within_distance`, ...) in the `join` argument. The geometry function you use will depend on what kind of operation you want to do, and the geometries of your shapefiles. For two polygons to find where they overlap you might use  st_intersect. ?st_join in the console can tell you more about all the geometry functions 
 
 In this case, we want to find what region each city falls within, so we will use `st_within`.
 
 ```{r, eval = F}
 pop_joined_sf <- st_join(pop_sf, ak_shp_sf, join = st_within)
+
+# error st_crs(x) == st_crs(y) means that the crs projections for the two files are not the same 
 ```
 
 This gives an error! 
@@ -205,6 +233,8 @@ pop_joined_sf <- st_join(pop_sf, ak_shp_sf, join = st_within)
 
 head(pop_joined_sf)
 plot(pop_joined_sf["region"])
+
+# a left-join keeps all of the rows from the left side and adds matching columns from the right side. Needed a region value for every city so we added the population data as the left side. Which cities are within a region would use st_within, st_contains would be used to join for the right side and have geometry data for each city 
 ```
 
 Next we compute the total population for each region. In this case, we want to do a `group_by` and `summarise` as this were a regular `data.frame` - otherwise all of our point geometries would be aggregated by region which is not what we want. We remove the sticky geometry using `as.data.frame`, on the advice of the `sf::tidyverse` help page.
@@ -216,6 +246,9 @@ pop_region <- pop_joined_sf %>%
   summarise(total_pop = sum(population))
 
 head(pop_region)
+
+#sf object has row for each region, a column with the total population for each region, and a geometry column for all the points within that region.
+#as.data.frame removes the sticky geometries - notice the dataframe has only columns for region and total_pop
 ```
 
 And use a regular `left_join` to get the information back to the Alaska region shapefile. Note that we need this step in order to retain our region geometries so that we can make some maps.
@@ -224,6 +257,7 @@ And use a regular `left_join` to get the information back to the Alaska region s
 ak_pop_sf <- left_join(ak_shp_sf, pop_region)
 
 head(ak_pop_sf)
+# looks like the original shapefile but has an added total population column 
 
 #plot to check
 plot(ak_pop_sf["total_pop"])
@@ -241,6 +275,8 @@ Let's try some out. Say we want to calculate the population by Alaska management
 ak_mgmt <- ak_pop_sf %>% 
   group_by(mgmt_area) %>% 
   summarize(total_pop = sum(total_pop))
+
+# what functions did - summarize merged all the group geometries into one geometry grouped by management areas - only has four rows now one for every management area (can see in the global environment) and the map shows lines that only break the state into four regions. Can change this by addiing arguement do_union  = F. This  would  change it back to the 13 observations for regions and the internal boundaries within the state would appear on the map again.
 
 plot(ak_mgmt["total_pop"])
 ```
